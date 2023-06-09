@@ -43,14 +43,3 @@ schools_map <- leaflet(schools) %>%
   addLayersControl(baseGroups = c('Safety', 'Family Involvement', 'Environment', 'Instruction')) %>%
   addLegend(pal = safety_colors, values = ranking)
 schools_map
-
-# Determine if rate of student misbehavior varies as a function of parent involvement.
-schools$Parent.Engagement.Score <- as.numeric(schools$Parent.Engagement.Score)
-cor.test(schools$Parent.Engagement.Score, schools$Rate.of.Misconducts..per.100.students.)
-
-# Graph the relationship between parent engagement score and rate of misconduct.
-ggplot(data = schools, aes(x = Parent.Engagement.Score, y = Rate.of.Misconducts..per.100.students.)) +
-  geom_point()
-  
-# Determine if rate of student misbehavior is associated with school attendance.
-cor.test(schools$Rate.of.Misconducts..per.100.students., schools$Average.Student.Attendance)
