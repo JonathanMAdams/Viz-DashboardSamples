@@ -1,0 +1,76 @@
+# Load dependencies.
+library(tidyverse)
+library(shiny)
+library(shinyWidgets)
+
+# Read in CSV file.
+drugs <- read.csv('https://data.cdc.gov/api/views/gypc-kpgn/rows.csv?accessType=DOWNLOAD')
+
+# Create new filtered dataset.
+# 1. Convert all date variables from characters to dates.
+drugs$START_TIME <- as.Date(drugs$START_TIME, format = '%m/%d/%Y')
+drugs$END_TIME <- as.Date(drugs$END_TIME, format = '%m/%d/%Y')
+
+# 2. Create filtered dataset for the visualization.
+drugs_filtered <- drugs %>%
+  filter(GROUP == 'Age' &
+           SUBGROUP %in% c('0-15 Years', '16-34 Years', '35-54 Years') &
+           END_TIME <= '2022-12-31' &
+           INDICATOR %in% c('All Opioids', 'Cannabis', 'Stimulants', 'Benzodiazepine'))
+
+# 3. Fetch the count values of inpatient visits from 2020-01-01 to 2020-12-31.
+  # Filtering the dataframe will improve performance by eliminating unnecessary calculations.
+drugs_visits <- drugs %>%
+  filter(MEASURE == 'Count' &
+           END_TIME <= '2022-12-31') %>%
+  select(START_TIME, SETTING, VALUE)
+
+# 4. Left join drug_visits to drugs_filtered to get counts of visits.
+drugs_compiled <- 
+  merge(x = drugs_filtered, y = drugs_visits, by.x = c('SETTING', 'START_TIME'), by.y = c('SETTING', 'START_TIME')) %>%
+  mutate(VisitCount = (VALUE.x / 100) * VALUE.y) %>%
+  mutate(MEASURE = 'Count') %>%
+  select(-'VALUE.x', -'VALUE.y')
+
+# 5. Create the visualization.
+# ggplot(drugs_compiled, aes(x = END_TIME, y = VisitCount, fill = INDICATOR, color = INDICATOR)) +
+#  ggtitle('Drug-related inpatient hospitalizations among U.S. patients aged 0-15 years, 2020-2022') +
+#  labs(x = 'Year', y = 'Number of visits', color = 'Drug', fill = 'Drug') +
+#  geom_line() +
+#  geom_point() +
+#  facet_wrap(~SUBGROUP)
+
+# 6. Create the Shiny app.
+ui <- pageWithSidebar(
+  headerPanel('Drug-related inpatient hospitalizations, 2020-2022'),
+  sidebarPanel(
+    selectInput(inputId = 'SUBGROUP',
+                label = 'Ages:',
+                choices = c('0-15 Years' = '0-15 Years',
+                            '16-34 Years' = '16-34 Years',
+                            '35-54 Years' = '35-54 Years')),
+    radioButtons(inputId = 'SETTING',
+                 label = 'Setting: ',
+                 choices = c('Inpatient' = 'IP',
+                             'Emergency Department' = 'ED'))
+  ),
+  mainPanel(
+    plotOutput('plot')
+  )
+)
+
+# Specify the server function.
+server <- function(input, output) {
+  output$plot <- renderPlot({
+    ggplot(data = drugs_compiled[drugs_compiled$SUBGROUP == input$SUBGROUP & drugs_compiled$SETTING == input$SETTING, ], aes(x = END_TIME,
+                               y = VisitCount,
+                               fill = INDICATOR,
+                               color = INDICATOR)) +
+      geom_line() +
+      geom_point(group = 1)
+  }
+  )
+}
+
+# Compile shiny app.
+shinyApp(ui, server)
